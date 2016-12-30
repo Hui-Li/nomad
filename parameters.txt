@@ -1,0 +1,1 @@
+--nthreads 4 --reg 0.05  --lrate 0.012 --drate 0.01  --dim 100 --timeout 100 --path ../data/netflix/nomad

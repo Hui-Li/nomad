@@ -31,15 +31,16 @@
 
 
 #include <random>
+
 typedef std::mt19937_64 rng_type;
 
 #include "tbb/scalable_allocator.h"
 #include "tbb/cache_aligned_allocator.h"
 
-template <typename T>
+template<typename T>
 using sallocator = tbb::scalable_allocator<T>;
 
-template <typename T>
+template<typename T>
 using callocator = tbb::cache_aligned_allocator<T>;
 
 using real=double;

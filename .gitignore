@@ -1,0 +1,11 @@
+data/
+.idea/
+build/
+Debug/
+Release/
+cmake-build-debug/
+cmake-build-release
+*.sdf
+*.suo
+*.opensdf
+.DS_Store

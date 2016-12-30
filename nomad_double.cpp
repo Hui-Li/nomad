@@ -25,7 +25,7 @@ using scalar=double;
 
 int main(int argc, char **argv) {
 
-  RealDataBody body;
-  return body.run(argc, argv);
+    RealDataBody body;
+    return body.run(argc, argv);
 
 }
