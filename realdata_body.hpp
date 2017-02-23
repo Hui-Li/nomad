@@ -47,80 +47,65 @@ bool read_data(const string filename, int part_index, int num_parts,
                vector<scalar, sallocator<scalar> > &row_val
 ) {
 
-    ifstream data_file(filename, ios::in | ios::binary);
-
-    int file_id;
     int nrows;
     int ncols;
     long long total_nnz;
 
-    // read the ID of the file to figure out whether it is normal file format
-    // or long file format
-    if (!data_file.read(reinterpret_cast<char *>(&file_id), sizeof(int))) {
-        cout << "Error in reading ID from file" << endl;
-        return false;
+    //read from meta
+    string meta_path = filename.substr( 0, filename.rfind("/") );
+    meta_path += "/meta";
+    ifstream meta_file( meta_path.c_str() );
+    if ( !meta_file.is_open() ){
+        cout << "fail to open " << meta_path << endl;
+        exit(-1);
     }
-
-    // in this case, the file is in regular PETSc foramt
-    if (file_id == MAT_FILE_CLASSID) {
-        int header[3];
-
-        if (!data_file.read(reinterpret_cast<char *>(header), 3 * sizeof(int))) {
-            cout << "Error in reading header from file" << endl;
-            return false;
+    meta_file >> nrows >> ncols;
+    string tmp_file;
+    while ( meta_file >> total_nnz >> tmp_file ){
+        if ( filename.find( tmp_file ) != string::npos ){
+            break;
         }
-
-        nrows = header[0];
-        ncols = header[1];
-        total_nnz = header[2];
     }
-        // in this case, it is in PETSc format as well, but the nnz is in long long.
-    else if (file_id == LONG_FILE_CLASSID) {
-        int header[2];
-
-        if (!data_file.read(reinterpret_cast<char *>(header), 2 * sizeof(int))) {
-            cout << "Error in reading header from file" << endl;
-            return false;
-        }
-
-        nrows = header[0];
-        ncols = header[1];
-
-        if (!data_file.read(reinterpret_cast<char *>(&total_nnz), sizeof(long long))) {
-            cout << "Error in reading nnz from file" << endl;
-            return false;
-        }
-
-    } else {
-        cout << file_id << " does not identify a valid binary matrix file!" << endl;
-        exit(1);
-    }
+    meta_file.close();
 
     if (part_index == 0) {
         cout << "nrows: " << nrows << ", ncols: " << ncols << ", total_nnz: " << total_nnz << endl;
     }
 
-
     // calculate how many number of rows is to be stored locally
-    const int num_rows_per_part = nrows / num_parts + ((nrows % num_parts > 0) ? 1 : 0);
+    const int num_rows_per_part = nrows/num_parts + ((nrows%num_parts > 0) ? 1 : 0);
     const int min_row = num_rows_per_part * part_index;
     min_row_index = min_row;
     const int max_row = std::min(num_rows_per_part * (part_index + 1), nrows);
 
+    ifstream data_file (filename, ios::in | ios::binary);
+
+    if ( !data_file.is_open() ){
+        cout << "fail to open " << filename << endl;
+    }
+
     // return the number of rows stored in the machine, by reference
     local_num_rows = max_row - min_row;
 
-    int *total_nnz_rows = sallocator<int>().allocate(nrows);
-    if (!data_file.read(reinterpret_cast<char *>(total_nnz_rows), nrows * sizeof(int))) {
+    int* total_nnz_rows = sallocator<int>().allocate(nrows);
+    int* row_ptr = sallocator<int>().allocate(nrows + 1);
+    data_file.seekg( (total_nnz) * sizeof(double), data_file.beg );
+    if (!data_file.read(reinterpret_cast<char*>(row_ptr), (nrows + 1)*sizeof(int))) {
         cout << "Error in reading nnz values from file!" << endl;
         return false;
     }
 
+    for ( int i = 0; i < nrows; i++ ){
+        total_nnz_rows[ i ] = row_ptr[ i + 1 ] - row_ptr[ i ];
+    }
+
+    sallocator<int>().deallocate(row_ptr, nrows + 1);
+
     // calculate how many number of entries we'd have to skip to get to the
     // region of file that is interesting locally
-    long long begin_skip = std::accumulate(total_nnz_rows, total_nnz_rows + min_row, 0LL);
-    long long nnz = std::accumulate(total_nnz_rows + min_row, total_nnz_rows + max_row, 0LL);
-    long long end_skip = total_nnz - nnz - begin_skip;
+    long long begin_skip=std::accumulate(total_nnz_rows,total_nnz_rows+min_row,0LL);
+    long long nnz=std::accumulate(total_nnz_rows+min_row,total_nnz_rows+max_row,0LL);
+    long long end_skip=total_nnz-nnz-begin_skip;
 
     // BUGBUG: this is just for debugging purpose
     if (part_index == 3) {
@@ -130,23 +115,25 @@ bool read_data(const string filename, int part_index, int num_parts,
     }
 
     // Skip over the begin_nnz number of column indices in the file
-    data_file.seekg(begin_skip * sizeof(int), std::ios_base::cur);
+    data_file.seekg( (total_nnz)*sizeof(double) + (nrows + 1)*sizeof(int) + begin_skip * sizeof(int) );
 
     cout << "read column indices" << endl;
 
-    int *col_idx = sallocator<int>().allocate(nnz);
-    if (!data_file.read(reinterpret_cast<char *>(col_idx), nnz * sizeof(int))) {
+    int* col_idx = sallocator<int>().allocate(nnz);
+
+    // int* col_idx = sallocator<int>().allocate(nnz);
+    if (!data_file.read(reinterpret_cast<char*>(col_idx), nnz*sizeof(int))) {
         cout << "Error in reading column indices from file!" << endl;
         return false;
     }
 
     // Skip over remaining nnz and the beginning of data as well
-    data_file.seekg(end_skip * sizeof(int) + begin_skip * sizeof(double), std::ios_base::cur);
+    data_file.seekg( begin_skip*sizeof(double), std::ios_base::beg);
 
     cout << "read values" << endl;
 
-    double *col_val = sallocator<double>().allocate(nnz);
-    if (!data_file.read(reinterpret_cast<char *>(col_val), nnz * sizeof(double))) {
+    double* col_val = sallocator<double>().allocate(nnz);
+    if (!data_file.read(reinterpret_cast<char*>(col_val), nnz*sizeof(double))) {
         cout << "Error in reading matrix values from file" << endl;
         exit(1);
     }
@@ -204,7 +191,6 @@ bool read_data(const string filename, int part_index, int num_parts,
     row_val_vec.clear();
 
     return true;
-
 }
 
 
@@ -238,29 +224,20 @@ namespace nomad {
 
         virtual int get_num_cols() {
 
-            const string train_filename = path_ + "/train.dat";
+            const string meta_filename = path_ + "/meta";
 
             // read number of columns from the data file
-            int global_num_cols;
-            {
-                ifstream data_file(train_filename, ios::in | ios::binary);
-                int header[4];
-
-                if (!data_file.read(reinterpret_cast<char *>(header), 4 * sizeof(int))) {
-                    cout << "Error in reading ID from file" << endl;
-                    exit(11);
-                }
-
-                global_num_cols = header[2];
-
-                data_file.close();
+            int nrows, ncols;
+            ifstream meta_file( meta_filename.c_str() );
+            if ( !meta_file.is_open() ){
+                cout << "fail to open " << meta_filename << endl;
+                exit(11);
             }
+            meta_file >> nrows >> ncols;
+            meta_file.close();
 
-            return global_num_cols;
-
+            return ncols;
         }
-
-
     };
 
 }
