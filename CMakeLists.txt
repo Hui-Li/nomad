@@ -50,7 +50,7 @@ endif(Boost_FOUND)
 
 message(STATUS "${CMAKE_CXX_FLAGS}")
 
-add_executable(nomad_float nomad_float.cpp)
-#add_executable(nomad_double nomad_double.cpp)
+#add_executable(nomad_float nomad_float.cpp)
+add_executable(nomad_double nomad_double.cpp)
 #add_executable(synthgen synthgen.cpp)
 #add_executable(permute permute.cpp)

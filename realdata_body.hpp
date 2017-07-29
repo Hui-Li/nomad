@@ -263,7 +263,7 @@ protected:
     ) {
 
         RealDataOption &real_option = dynamic_cast<RealDataOption &>(option);
-        const string train_filename = real_option.path_ + "/train.dat";
+        const string train_filename = real_option.path_ + "/train.csr";
         return read_data(train_filename, part_index, num_parts,
                          min_row_index,
                          local_num_rows,
@@ -282,7 +282,7 @@ protected:
 
 
         RealDataOption &real_option = dynamic_cast<RealDataOption &>(option);
-        const string test_filename = real_option.path_ + "/test.dat";
+        const string test_filename = real_option.path_ + "/test.csr";
         return read_data(test_filename, part_index, num_parts,
                          min_row_index,
                          local_num_rows,

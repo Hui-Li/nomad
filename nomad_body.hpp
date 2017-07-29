@@ -163,8 +163,7 @@ public:
 
 
         // distribution used to initialize parameters
-        // distribution is taken from Hsiang-Fu's implementation of DSGD
-        std::uniform_real_distribution<> init_dist(0, 1.0 / sqrt(option.latent_dimension_));
+        std::uniform_real_distribution<> init_dist(-0.5, 0.5);
 
         // maintain the number of updates for each thread
         atomic<long long> *num_updates = callocator<atomic<long long> >().allocate(option.num_threads_);
@@ -319,8 +318,10 @@ public:
 
                         const int col_index = p_col->col_index_;
 
-                        const scalar step_size = learn_rate * 1.5 /
-                                                 (1.0 + decay_rate * pow(col_update_counts[col_index] + 1, 1.5));
+//                        const scalar step_size = learn_rate * 1.5 /
+//                                                 (1.0 + decay_rate * pow(col_update_counts[col_index] + 1, 1.5));
+
+                        const scalar step_size = learn_rate;
 
                         scalar *col = p_col->values_;
 
