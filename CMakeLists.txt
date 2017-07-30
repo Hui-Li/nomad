@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 
 project(nomad CXX)
 
-set(CMAKE_CXX_FLAGS "-std=c++11 -O3 -Wall -fsigned-char")
+set(CMAKE_CXX_FLAGS "-std=c++11 -DNDEBUG -O3 -Wall -fsigned-char")
 
 # find mpi
 find_package(MPI REQUIRED)

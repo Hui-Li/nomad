@@ -191,13 +191,17 @@ public:
         // each thread will calculate test error on its own, and the results will be aggregated
         int *train_count_errors = callocator<int>().allocate(option.num_threads_);
         real *train_sum_errors = callocator<real>().allocate(option.num_threads_);
+        real *train_sum_loss = callocator<real>().allocate(option.num_threads_);
         int *test_count_errors = callocator<int>().allocate(option.num_threads_);
         real *test_sum_errors = callocator<real>().allocate(option.num_threads_);
+        real *test_sum_loss = callocator<real>().allocate(option.num_threads_);
 
         std::fill_n(train_count_errors, option.num_threads_, 0);
         std::fill_n(train_sum_errors, option.num_threads_, 0.0);
+        std::fill_n(train_sum_loss, option.num_threads_, 0.0);
         std::fill_n(test_count_errors, option.num_threads_, 0);
         std::fill_n(test_sum_errors, option.num_threads_, 0.0);
+        std::fill_n(test_sum_loss, option.num_threads_, 0.0);
 
         // array used to remember the sizes of send_queue in each machine
         atomic<int> *queue_current_sizes = callocator<atomic<int> >().allocate(numtasks);
@@ -391,9 +395,11 @@ public:
                 int num_col_processed = 0;
 
                 real train_sum_squared_error = 0.0;
+                real train_loss = 0.0;
                 int train_count_error = 0;
 
                 real test_sum_squared_error = 0.0;
+                real test_loss = 0.0;
                 int test_count_error = 0;
 
                 int monitor_num = 0;
@@ -426,11 +432,16 @@ public:
 
                             // calculate error
                             scalar cur_error = -train_row_val[offset];
+                            scalar sum = 0;
+
                             for (int i = 0; i < dim; i++) {
                                 cur_error += col[i] * row[i];
+                                sum += row[i] * row[i];
+                                sum += col[i] * col[i];
                             }
 
                             train_sum_squared_error += cur_error * cur_error;
+                            train_loss += cur_error * cur_error + par_lambda * sum;
                             train_count_error++;
 
                         }
@@ -445,11 +456,16 @@ public:
 
                             // calculate error
                             scalar cur_error = -test_row_val[offset];
+                            scalar sum = 0;
+
                             for (int i = 0; i < dim; i++) {
                                 cur_error += col[i] * row[i];
+                                sum += row[i] * row[i];
+                                sum += col[i] * col[i];
                             }
 
                             test_sum_squared_error += cur_error * cur_error;
+                            test_loss += cur_error * cur_error + par_lambda * sum;
                             test_count_error++;
 
                         }
@@ -470,9 +486,11 @@ public:
 
                 train_count_errors[thread_index] = train_count_error;
                 train_sum_errors[thread_index] = train_sum_squared_error;
+                train_sum_loss[thread_index] = train_loss;
 
                 test_count_errors[thread_index] = test_count_error;
                 test_sum_errors[thread_index] = test_sum_squared_error;
+                test_sum_loss[thread_index] = test_loss;
 
                 // notify that this thread has finished testing
                 count_setup_threads++;
@@ -1076,6 +1094,9 @@ public:
                                                            0.0);
             real machine_test_sum_error = std::accumulate(test_sum_errors, test_sum_errors + option.num_threads_, 0.0);
 
+            real machine_train_sum_loss = std::accumulate(train_sum_loss, train_sum_loss + option.num_threads_, 0.0);
+            real machine_test_sum_loss = std::accumulate(test_sum_loss, test_sum_loss + option.num_threads_, 0.0);
+
             int global_train_count_error = 0;
             MPI_Allreduce(&machine_train_count_error, &global_train_count_error, 1, MPI_INT,
                           MPI_SUM, MPI_COMM_WORLD);
@@ -1088,6 +1109,12 @@ public:
                           MPI_SUM, MPI_COMM_WORLD);
             real global_test_sum_error = 0.0;
             MPI_Allreduce(&machine_test_sum_error, &global_test_sum_error, 1, MPI_DOUBLE,
+                          MPI_SUM, MPI_COMM_WORLD);
+            real global_train_sum_loss = 0.0;
+            MPI_Allreduce(&machine_train_sum_loss, &global_train_sum_loss, 1, MPI_DOUBLE,
+                          MPI_SUM, MPI_COMM_WORLD);
+            real global_test_sum_loss = 0.0;
+            MPI_Allreduce(&machine_test_sum_loss, &global_test_sum_loss, 1, MPI_DOUBLE,
                           MPI_SUM, MPI_COMM_WORLD);
 
             long long global_num_updates = 0;
@@ -1124,6 +1151,8 @@ public:
                 cout << "elapsed time: " << option.timeouts_[main_timeout_iter] << endl;
                 cout << "current training RMSE: " << sqrt(global_train_sum_error / global_train_count_error) << endl;
                 cout << "current test RMSE: " << sqrt(global_test_sum_error / global_test_count_error) << endl;
+                cout << "current training LOSS: " << global_train_sum_loss << endl;
+                cout << "current test LOSS: " << global_test_sum_loss << endl;
 
                 cout << "testgrep," << numtasks << "," << option.num_threads_ << ","
                      << option.timeouts_[main_timeout_iter] << "," << global_num_updates << ","

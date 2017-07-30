@@ -7,9 +7,9 @@ cmake ../
 make
 
 nthreads=4
-l=0.001
-lambda=0.1
+l="0.002"
+lambda="0.05"
 dim=50
-path="../../mf_data/ml10m"
+path="../../mf_data/netflix"
 
 ./nomad_double --nthreads $nthreads --lrate $l --reg $lambda --dim $dim --path $path
