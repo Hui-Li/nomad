@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 2.8)
 
 project(nomad CXX)
 
-set(CMAKE_CXX_FLAGS "-std=c++11 -DNDEBUG -O3 -Wall -fsigned-char")
+# -lrt: https://github.com/Bumblebee-Project/Bumblebee/issues/76
+set(CMAKE_CXX_FLAGS "-std=c++11 -DNDEBUG -O3 -Wall -fsigned-char -lrt")
 
 # find mpi
 find_package(MPI REQUIRED)
@@ -15,22 +16,19 @@ if (MPI_FOUND)
     link_libraries(${MPI_LIBRARIES})
 endif(MPI_FOUND)
 
-#set(CMAKE_BUILD_TYPE Release)
-# set(CMAKE_BUILD_TYPE Debug)
-
-
 # find TBB
-
 # Add FindTBB directory to CMake's module path
 # This cmake module is from http://code.google.com/p/findtbb
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/CMake/FindTBB/")
 
-#set(TBB_ROOT_DIR "/home/hli/Desktop/Workspace/nomad/tbb")
-#set(TBB_INCLUDE_DIR "/home/hli/Desktop/Workspace/nomad/tbb/include/tbb")
-#set(TBB_LIBRARY "/home/hli/Desktop/Workspace/nomad/tbb/lib/intel64/gcc4.7")
+find_package(TBB)
 
-find_package(TBB REQUIRED)
-
+if(NOT ${TBB_FOUND})
+    set(TBB_ROOT_DIR "/home/huilee/local/intel/tbb")
+    set(TBB_INCLUDE_DIR "/home/huilee/local/intel/tbb/include")
+    set(TBB_LIBRARY "/home/huilee/local/intel/tbb/lib/intel64/gcc4.7")
+    find_package(TBB REQUIRED)
+endif(TBB_FOUND)
 if(TBB_FOUND)
     message(STATUS "TBB found: " ${TBB_INCLUDE_DIRS})
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ltbb -ltbbmalloc")
@@ -39,9 +37,12 @@ if(TBB_FOUND)
 endif(TBB_FOUND)
 
 # find Boost
-
-find_package(Boost 1.49 COMPONENTS program_options REQUIRED)
-
+find_package(Boost COMPONENTS program_options)
+if(NOT ${Boost_FOUND})
+    SET(BOOST_ROOT ~/local) # default
+    SET(Boost_NO_SYSTEM_PATHS ON) # force to use own build
+    find_package(Boost COMPONENTS program_options REQUIRED)
+endif(NOT ${Boost_FOUND})
 if(Boost_FOUND)
     message(STATUS "Boost found: " ${Boost_INCLUDE_DIR})
     include_directories( ${Boost_INCLUDE_DIR})

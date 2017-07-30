@@ -55,7 +55,7 @@ cd $PBS_O_WORKDIR
 
 ######################################
 
-cd ../build/
+cd ../../../build/
 
 data_folder="/data/huilee/mf_data/netflix"
 
