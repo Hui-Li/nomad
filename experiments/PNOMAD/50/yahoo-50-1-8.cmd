@@ -15,29 +15,29 @@
 ###############################################################################
 
 ### Job name
-#PBS -N NOMAD-n-100-1-4
+#PBS -N PNOMAD-y-50-1-8
 ### Declare job non-rerunable
 #PBS -r n
 #PBS -k oe
 
 ###  Queue name (debug, parallel or fourday)   ################################
-###    Queue debug   : Walltime can be  00:00:01 to 00:30:00                  # 
+###    Queue debug   : Walltime can be  00:00:01 to 00:30:00                  #
 ###    Queue parallel: Walltime can be  00:00:01 to 24:00:00                  #
 ###    Queue fourday : Walltime can be  24:00:01 to 96:00:00                  #
 ###  #PBS -q parallel                                                         #
 ###############################################################################
-#PBS -q parallel
+#PBS -q special
 
 ###  Wall time required. This example is 30 min  ##############################
 ###  #PBS -l walltime=00:30:00                   			      #
 ###############################################################################
 #PBS -l walltime=24:00:00
 
-###  Number of node and cpu core  ############################################# 
+###  Number of node and cpu core  #############################################
 ###  For serial program, 1 core is used					      #
 ###  #PBS -l nodes=1:ppn=1						      #
 ###############################################################################
-#PBS -l nodes=1:ppn=4
+#PBS -l nodes=1:ppn=8
 
 ###############################################################################
 #The following stuff will be executed in the first allocated node.            #
@@ -54,29 +54,25 @@ echo "Job Start  Time is `date "+%Y/%m/%d -- %H:%M:%S"`"
 cd $PBS_O_WORKDIR
 
 ######################################
-
 cd ../../../build/
 
-data_folder="/data/huilee/mf_data/netflix"
+data_folder="/data/huilee/mf_data/yahoo"
 
 default_timeouts="10 50 100 150 200 300 500 1000"
-dimension="100"
-lambda="0.05"
-l="0.002"
-thread="4"
+dimension="50"
+lambda="1"
+l="0.0001"
+thread="8"
 
-OUTFILE="log-netflix-100-1-4.txt"
+OUTFILE="log-yahoo-50-1-8.txt"
 
 for timout in $default_timeouts; do
 	time ./nomad_double --nthreads $thread --lrate $l --reg $lambda --dim $dimension --path $data_folder --timeout $timout >> ${OUTFILE}
 done
 
 mv $OUTFILE $log_file $PBS_O_WORKDIR
-
 ######################################
 
 echo "Job Finish Time is `date "+%Y/%m/%d -- %H:%M:%S"`"
 mv $HOME/${PBS_JOBNAME}.e${JID} $HOME/${PBS_JOBNAME}.o${JID} $PBS_O_WORKDIR
-
 exit 0
-
