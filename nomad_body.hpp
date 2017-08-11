@@ -196,7 +196,6 @@ public:
         int *test_count_errors = callocator<int>().allocate(option.num_threads_);
         real *test_sum_errors = callocator<real>().allocate(option.num_threads_);
         real *test_sum_loss = callocator<real>().allocate(option.num_threads_);
-        real *test_sum_reg = callocator<real>().allocate(option.num_threads_);
 
         std::fill_n(train_count_errors, option.num_threads_, 0);
         std::fill_n(train_sum_errors, option.num_threads_, 0.0);
@@ -205,7 +204,6 @@ public:
         std::fill_n(test_count_errors, option.num_threads_, 0);
         std::fill_n(test_sum_errors, option.num_threads_, 0.0);
         std::fill_n(test_sum_loss, option.num_threads_, 0.0);
-        std::fill_n(test_sum_reg, option.num_threads_, 0.0);
 
         // array used to remember the sizes of send_queue in each machine
         atomic<int> *queue_current_sizes = callocator<atomic<int> >().allocate(numtasks);
@@ -405,7 +403,6 @@ public:
 
                 real test_sum_squared_error = 0.0;
                 real test_loss = 0.0;
-                real test_reg = 0.0;
                 int test_count_error = 0;
 
                 int monitor_num = 0;
@@ -448,7 +445,7 @@ public:
 
                             train_sum_squared_error += cur_error * cur_error;
                             train_loss += cur_error * cur_error;
-                            train_reg += par_lambda * sum;
+                            train_reg += sum;
                             train_count_error++;
 
                         }
@@ -473,7 +470,6 @@ public:
 
                             test_sum_squared_error += cur_error * cur_error;
                             test_loss += cur_error * cur_error;
-                            test_reg += par_lambda * sum;
                             test_count_error++;
 
                         }
@@ -500,7 +496,6 @@ public:
                 test_count_errors[thread_index] = test_count_error;
                 test_sum_errors[thread_index] = test_sum_squared_error;
                 test_sum_loss[thread_index] = test_loss;
-                test_sum_reg[thread_index] = test_reg;
 
                 // notify that this thread has finished testing
                 count_setup_threads++;
@@ -1108,7 +1103,6 @@ public:
             real machine_test_sum_loss = std::accumulate(test_sum_loss, test_sum_loss + option.num_threads_, 0.0);
 
             real machine_train_sum_reg = std::accumulate(train_sum_reg, train_sum_reg + option.num_threads_, 0.0);
-            real machine_test_sum_reg = std::accumulate(test_sum_reg, test_sum_reg + option.num_threads_, 0.0);
 
             int global_train_count_error = 0;
             MPI_Allreduce(&machine_train_count_error, &global_train_count_error, 1, MPI_INT,
@@ -1133,10 +1127,6 @@ public:
 
             real global_train_sum_reg = 0.0;
             MPI_Allreduce(&machine_train_sum_reg, &global_train_sum_reg, 1, MPI_DOUBLE,
-                          MPI_SUM, MPI_COMM_WORLD);
-
-            real global_test_sum_reg = 0.0;
-            MPI_Allreduce(&machine_test_sum_reg, &global_test_sum_reg, 1, MPI_DOUBLE,
                           MPI_SUM, MPI_COMM_WORLD);
 
             long long global_num_updates = 0;
@@ -1173,14 +1163,12 @@ public:
                 cout << "elapsed time: " << option.timeouts_[main_timeout_iter] << endl;
                 
                 cout << "current training RMSE: " << sqrt(global_train_sum_error / global_train_count_error) << endl;
-                cout << "current training obj: " << global_train_sum_loss + global_train_sum_reg << endl;
+                cout << "current training obj: " << global_train_sum_loss + par_lambda * global_train_sum_reg << endl;
                 cout << "current training LOSS: " << global_train_sum_loss << endl;
                 cout << "current training reg: " << global_train_sum_reg << endl;
 
                 cout << "current test RMSE: " << sqrt(global_test_sum_error / global_test_count_error) << endl;
-                cout << "current test obj: " << global_test_sum_loss + global_test_sum_reg << endl;
                 cout << "current test LOSS: " << global_test_sum_loss << endl;
-                cout << "current test reg: " << global_test_sum_reg << endl;
 
                 cout << "testgrep," << numtasks << "," << option.num_threads_ << ","
                      << option.timeouts_[main_timeout_iter] << "," << global_num_updates << ","
@@ -1275,7 +1263,6 @@ public:
         callocator<int>().deallocate(test_count_errors, option.num_threads_);
         callocator<real>().deallocate(test_sum_errors, option.num_threads_);
         callocator<real>().deallocate(test_sum_loss, option.num_threads_);
-        callocator<real>().deallocate(test_sum_reg, option.num_threads_);
 
         callocator<atomic<bool> >().deallocate(is_column_empty, global_num_cols);
 
